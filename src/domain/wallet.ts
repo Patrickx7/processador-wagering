@@ -23,9 +23,16 @@ export class Wallet {
     private _updatedAt: Date,
   ) {}
 
-  static open(props: { id: string; playerId: string; initialBalance: Money }): Wallet {
+  static open(props: {
+    id: string;
+    playerId: string;
+    initialBalance: Money;
+  }): Wallet {
     if (props.initialBalance.isNegative()) {
-      throw new DomainError('INVALID_AMOUNT', 'Saldo inicial não pode ser negativo');
+      throw new DomainError(
+        'INVALID_AMOUNT',
+        'Saldo inicial não pode ser negativo',
+      );
     }
 
     const agora = new Date();
@@ -83,12 +90,17 @@ export class Wallet {
     transactionId: string,
   ): WalletLedgerEntry {
     if (!valor.isPositive()) {
-      throw new DomainError('INVALID_AMOUNT', 'Valor precisa ser maior que zero');
+      throw new DomainError(
+        'INVALID_AMOUNT',
+        'Valor precisa ser maior que zero',
+      );
     }
 
     const saldoAntes = this._balance;
     const saldoDepois =
-      direction === LedgerDirection.Debit ? saldoAntes.subtract(valor) : saldoAntes.add(valor);
+      direction === LedgerDirection.Debit
+        ? saldoAntes.subtract(valor)
+        : saldoAntes.add(valor);
 
     const entry = WalletLedgerEntry.create({
       walletId: this.id,
@@ -108,7 +120,10 @@ export class Wallet {
 
   private garantirMesmaMoeda(valor: Money): void {
     if (valor.currency !== this.currency) {
-      throw new DomainError('CURRENCY_MISMATCH', 'Moeda diferente da moeda da wallet');
+      throw new DomainError(
+        'CURRENCY_MISMATCH',
+        'Moeda diferente da moeda da wallet',
+      );
     }
   }
 }

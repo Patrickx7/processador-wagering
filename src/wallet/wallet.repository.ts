@@ -25,12 +25,22 @@ export class WalletRepository {
   async update(manager: EntityManager, wallet: Wallet): Promise<void> {
     await manager.query(
       `UPDATE wallets SET balance_cents = $2, version = $3, updated_at = $4 WHERE id = $1`,
-      [wallet.id, wallet.balance.getCentavos().toString(), wallet.version, wallet.updatedAt],
+      [
+        wallet.id,
+        wallet.balance.getCentavos().toString(),
+        wallet.version,
+        wallet.updatedAt,
+      ],
     );
   }
 
-  async findById(manager: EntityManager, id: string, comLock = false): Promise<Wallet | null> {
-    const sql = `SELECT * FROM wallets WHERE id = $1` + (comLock ? ' FOR UPDATE' : '');
+  async findById(
+    manager: EntityManager,
+    id: string,
+    comLock = false,
+  ): Promise<Wallet | null> {
+    const sql =
+      `SELECT * FROM wallets WHERE id = $1` + (comLock ? ' FOR UPDATE' : '');
     const rows = await manager.query(sql, [id]);
     if (rows.length === 0) {
       return null;
@@ -48,7 +58,10 @@ export class WalletRepository {
     });
   }
 
-  async insertLedgerEntry(manager: EntityManager, entry: WalletLedgerEntry): Promise<void> {
+  async insertLedgerEntry(
+    manager: EntityManager,
+    entry: WalletLedgerEntry,
+  ): Promise<void> {
     await manager.query(
       `INSERT INTO ledger_entries
         (id, wallet_id, transaction_id, direction, amount_cents, balance_before_cents, balance_after_cents, currency, created_at)
@@ -89,8 +102,14 @@ export class WalletRepository {
         transactionId: row.transaction_id,
         direction: row.direction as LedgerDirection,
         money: Money.fromCentavos(BigInt(row.amount_cents), row.currency),
-        balanceBefore: Money.fromCentavos(BigInt(row.balance_before_cents), row.currency),
-        balanceAfter: Money.fromCentavos(BigInt(row.balance_after_cents), row.currency),
+        balanceBefore: Money.fromCentavos(
+          BigInt(row.balance_before_cents),
+          row.currency,
+        ),
+        balanceAfter: Money.fromCentavos(
+          BigInt(row.balance_after_cents),
+          row.currency,
+        ),
         createdAt: row.created_at,
       }),
     }));

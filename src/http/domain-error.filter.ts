@@ -9,6 +9,8 @@ export class DomainErrorFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse<Response>();
     const code = error instanceof DomainError ? error.code : 'INVALID_MONEY';
 
-    response.status(400).json({ statusCode: 400, error: code, message: error.message });
+    response
+      .status(400)
+      .json({ statusCode: 400, error: code, message: error.message });
   }
 }

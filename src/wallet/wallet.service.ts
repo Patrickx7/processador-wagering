@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 import { isUniqueViolation } from '../database/pg-errors';
@@ -57,7 +61,9 @@ export class WalletService {
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
-        throw new ConflictException('Já existe uma wallet para esse player nessa moeda');
+        throw new ConflictException(
+          'Já existe uma wallet para esse player nessa moeda',
+        );
       }
       throw error;
     }
@@ -66,17 +72,26 @@ export class WalletService {
   }
 
   async buscar(walletId: string): Promise<Wallet> {
-    const wallet = await this.walletRepository.findById(this.dataSource.manager, walletId);
+    const wallet = await this.walletRepository.findById(
+      this.dataSource.manager,
+      walletId,
+    );
     if (!wallet) {
       throw new NotFoundException('Wallet não encontrada');
     }
     return wallet;
   }
 
-  async listarLedger(walletId: string, cursor: string | undefined, limit: number) {
+  async listarLedger(
+    walletId: string,
+    cursor: string | undefined,
+    limit: number,
+  ) {
     await this.buscar(walletId);
 
-    const depoisDoSeq = cursor ? Buffer.from(cursor, 'base64url').toString() : undefined;
+    const depoisDoSeq = cursor
+      ? Buffer.from(cursor, 'base64url').toString()
+      : undefined;
     const linhas = await this.walletRepository.listLedger(
       this.dataSource.manager,
       walletId,
@@ -96,7 +111,9 @@ export class WalletService {
         createdAt: entry.createdAt,
       })),
       nextCursor:
-        linhas.length === limit ? Buffer.from(String(ultima.seq)).toString('base64url') : null,
+        linhas.length === limit
+          ? Buffer.from(String(ultima.seq)).toString('base64url')
+          : null,
     };
   }
 }
