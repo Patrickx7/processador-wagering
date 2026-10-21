@@ -51,6 +51,7 @@ export class WageringService {
     idempotencyKey: string,
     dto: SubmeterTransacaoDto,
     ctx: EventContext,
+    inbox?: { consumerName: string; messageId: string },
   ): Promise<ResultadoTransacao> {
     const payloadHash = calcularPayloadHash(dto);
 
@@ -78,6 +79,16 @@ export class WageringService {
         );
         if (!wallet) {
           throw new NotFoundException('Wallet não encontrada');
+        }
+
+        // veio da fila: registra a mensagem na inbox junto com o resto
+        if (inbox) {
+          await manager.query(
+            `INSERT INTO inbox_messages (consumer_name, message_id, payload_hash, processed_at)
+             VALUES ($1, $2, $3, now())
+             ON CONFLICT DO NOTHING`,
+            [inbox.consumerName, inbox.messageId, payloadHash],
+          );
         }
 
         // ja recebeu essa key? entao devolve o resultado de antes

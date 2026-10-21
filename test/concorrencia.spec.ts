@@ -23,7 +23,10 @@ async function criarWallet(saldo: string) {
   const resposta = await fetch(`http://localhost:${portas[0]}/wallets`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ playerId, initialBalance: { amount: saldo, currency: 'BRL' } }),
+    body: JSON.stringify({
+      playerId,
+      initialBalance: { amount: saldo, currency: 'BRL' },
+    }),
   });
   const wallet = await resposta.json();
   return { walletId: wallet.id as string, playerId };
@@ -35,32 +38,42 @@ async function apostar(
   externalId: string,
   valor: string,
 ) {
-  const resposta = await fetch(`http://localhost:${porta}/wagering/transactions`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'idempotency-key': `teste:${externalId}` },
-    body: JSON.stringify({
-      providerId: 'teste',
-      externalTransactionId: externalId,
-      playerId: wallet.playerId,
-      walletId: wallet.walletId,
-      roundId: 'rodada-1',
-      gameId: 'jogo-1',
-      kind: 'BET',
-      money: { amount: valor, currency: 'BRL' },
-    }),
-  });
+  const resposta = await fetch(
+    `http://localhost:${porta}/wagering/transactions`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': `teste:${externalId}`,
+      },
+      body: JSON.stringify({
+        providerId: 'teste',
+        externalTransactionId: externalId,
+        playerId: wallet.playerId,
+        walletId: wallet.walletId,
+        roundId: 'rodada-1',
+        gameId: 'jogo-1',
+        kind: 'BET',
+        money: { amount: valor, currency: 'BRL' },
+      }),
+    },
+  );
   return { status: resposta.status, body: await resposta.json() };
 }
 
 async function buscarSaldo(walletId: string) {
-  const resposta = await fetch(`http://localhost:${portas[0]}/wallets/${walletId}`);
+  const resposta = await fetch(
+    `http://localhost:${portas[0]}/wallets/${walletId}`,
+  );
   const wallet = await resposta.json();
   return wallet.balance.amount as string;
 }
 
 // soma o ledger inteiro pra comparar com o saldo da wallet
 async function saldoPeloLedger(walletId: string) {
-  const resposta = await fetch(`http://localhost:${portas[0]}/wallets/${walletId}/ledger?limit=100`);
+  const resposta = await fetch(
+    `http://localhost:${portas[0]}/wallets/${walletId}/ledger?limit=100`,
+  );
   const ledger = await resposta.json();
 
   let saldo = Money.zero('BRL');
@@ -102,7 +115,9 @@ describe('concorrencia', () => {
     const externalId = randomUUID();
 
     const respostas = await Promise.all(
-      Array.from({ length: 50 }, () => apostar(portas[0], wallet, externalId, '10.00')),
+      Array.from({ length: 50 }, () =>
+        apostar(portas[0], wallet, externalId, '10.00'),
+      ),
     );
 
     const novas = respostas.filter((r) => r.body.idempotentReplay === false);
@@ -135,10 +150,14 @@ describe('concorrencia', () => {
   }, 30000);
 
   it('wallets diferentes em paralelo', async () => {
-    const wallets = await Promise.all(Array.from({ length: 5 }, () => criarWallet('50.00')));
+    const wallets = await Promise.all(
+      Array.from({ length: 5 }, () => criarWallet('50.00')),
+    );
 
     const respostas = await Promise.all(
-      wallets.map((wallet) => apostar(portas[0], wallet, randomUUID(), '30.00')),
+      wallets.map((wallet) =>
+        apostar(portas[0], wallet, randomUUID(), '30.00'),
+      ),
     );
 
     for (const resposta of respostas) {
