@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
@@ -22,6 +23,7 @@ import {
   WagerTransactionStatus,
 } from '../domain/wager-transaction';
 import { Wallet } from '../domain/wallet';
+import { contar, registrarLatencia } from '../metrics/metricas';
 import { OutboxRepository } from '../outbox/outbox.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { calcularPayloadHash } from './payload-hash';
@@ -40,6 +42,8 @@ const MAX_TENTATIVAS = 10;
 
 @Injectable()
 export class WageringService {
+  private readonly logger = new Logger(WageringService.name);
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly walletRepository: WalletRepository,
@@ -69,8 +73,11 @@ export class WageringService {
       referenceExternalTransactionId: dto.referenceExternalTransactionId,
     });
 
+    const inicio = Date.now();
+    let resultado: ResultadoTransacao;
+
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      resultado = await this.dataSource.transaction(async (manager) => {
         // trava a wallet (FOR UPDATE), quem chegar junto espera aqui
         const wallet = await this.walletRepository.findById(
           manager,
@@ -98,10 +105,12 @@ export class WageringService {
         );
         if (anterior) {
           if (!anterior.transaction.matchesPayload(payloadHash)) {
+            contar('conflitos_concorrencia');
             throw new ConflictException(
               'Idempotency-Key já usada com outro payload',
             );
           }
+          contar('duplicatas_detectadas');
           return this.resultado(anterior.transaction, anterior.saldo, true);
         }
 
@@ -115,9 +124,38 @@ export class WageringService {
     } catch (error) {
       // mesmo externalTransactionId com outra Idempotency-Key
       if (isUniqueViolation(error)) {
+        contar('conflitos_concorrencia');
         throw new ConflictException('Transação duplicada');
       }
       throw error;
+    }
+
+    registrarLatencia(inicio);
+    if (!resultado.idempotentReplay) {
+      this.contarStatus(resultado.status);
+    }
+    this.logger.log({
+      msg: 'transacao processada',
+      correlationId: ctx.correlationId,
+      messageId: inbox?.messageId,
+      transactionId: resultado.transactionId,
+      walletId: tx.walletId,
+      providerId: tx.providerId,
+      status: resultado.status,
+      failureCode: resultado.failureCode,
+      replay: resultado.idempotentReplay,
+    });
+
+    return resultado;
+  }
+
+  private contarStatus(status: WagerTransactionStatus) {
+    if (status === WagerTransactionStatus.Processed) {
+      contar('transacoes_processadas');
+    } else if (status === WagerTransactionStatus.Rejected) {
+      contar('transacoes_rejeitadas');
+    } else if (status === WagerTransactionStatus.PendingReference) {
+      contar('transacoes_pendentes_referencia');
     }
   }
 
@@ -154,10 +192,12 @@ export class WageringService {
       }
 
       if (tx.status === WagerTransactionStatus.PendingReference) {
+        contar('retries');
         await this.transactionRepository.agendarNovaTentativa(manager, tx.id);
         return;
       }
 
+      this.contarStatus(tx.status);
       await this.transactionRepository.update(manager, tx, wallet.balance);
       await this.salvarResultado(manager, wallet, tx, entry, {
         correlationId: randomUUID(),

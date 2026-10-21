@@ -18,6 +18,7 @@ import { DomainError } from '../domain/domain-error';
 import { MoneyError } from '../domain/money';
 import { SubmeterTransacaoDto } from '../wagering/wagering.dto';
 import { WageringService } from '../wagering/wagering.service';
+import { contar } from '../metrics/metricas';
 import { FILA_DLQ, FILA_TRANSACOES, sqs } from './sqs';
 
 const CONSUMER_NAME = 'wager-transactions-consumer';
@@ -93,7 +94,11 @@ export class WagerConsumer implements OnModuleInit, OnModuleDestroy {
         { correlationId: corpo.messageId, causationId: corpo.messageId },
         { consumerName: CONSUMER_NAME, messageId: corpo.messageId },
       );
-      this.logger.log(`mensagem ${corpo.messageId} -> ${resultado.status}`);
+      this.logger.log({
+        msg: 'mensagem da fila processada',
+        messageId: corpo.messageId,
+        status: resultado.status,
+      });
       await this.apagar(mensagem);
     } catch (error) {
       // erro de negocio ou de payload nao adianta tentar de novo
@@ -109,9 +114,12 @@ export class WagerConsumer implements OnModuleInit, OnModuleDestroy {
       const tentativas = Number(
         mensagem.Attributes?.ApproximateReceiveCount ?? 1,
       );
-      this.logger.warn(
-        `erro temporario na mensagem ${corpo.messageId}, tentativa ${tentativas}`,
-      );
+      contar('retries');
+      this.logger.warn({
+        msg: 'erro temporario, vai tentar de novo',
+        messageId: corpo.messageId,
+        tentativa: tentativas,
+      });
       await sqs.send(
         new ChangeMessageVisibilityCommand({
           QueueUrl: FILA_TRANSACOES,
@@ -123,9 +131,12 @@ export class WagerConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   private async mandarParaDlq(mensagem: Message, motivo: string) {
-    this.logger.warn(
-      `mensagem ${mensagem.MessageId} foi para a DLQ: ${motivo}`,
-    );
+    contar('mensagens_dlq');
+    this.logger.warn({
+      msg: 'mensagem enviada para a DLQ',
+      messageId: mensagem.MessageId,
+      motivo,
+    });
     await sqs.send(
       new SendMessageCommand({
         QueueUrl: FILA_DLQ,

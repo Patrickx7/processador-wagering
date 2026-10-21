@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
@@ -9,11 +10,14 @@ import { isUniqueViolation } from '../database/pg-errors';
 import { LedgerDirection, WalletLedgerEntry } from '../domain/ledger-entry';
 import { Money } from '../domain/money';
 import { Wallet } from '../domain/wallet';
+import { contar } from '../metrics/metricas';
 import { CriarWalletDto } from './wallet.dto';
 import { WalletRepository } from './wallet.repository';
 
 @Injectable()
 export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly walletRepository: WalletRepository,
@@ -69,6 +73,38 @@ export class WalletService {
     }
 
     return wallet;
+  }
+
+  // compara o saldo salvo na wallet com o saldo calculado pelo ledger
+  async reconciliar(walletId: string) {
+    const wallet = await this.buscar(walletId);
+    const soma = await this.walletRepository.somarLedger(
+      this.dataSource.manager,
+      walletId,
+    );
+
+    const calculado = Money.fromCentavos(soma.totalCentavos, wallet.currency);
+    const diferenca = wallet.balance.subtract(calculado);
+    const consistente = diferenca.isZero();
+
+    if (!consistente) {
+      // nao corrige sozinho, so avisa
+      contar('divergencias_reconciliacao');
+      this.logger.error({
+        msg: 'divergencia na reconciliacao',
+        walletId,
+        diferenca: diferenca.toString(),
+      });
+    }
+
+    return {
+      walletId,
+      storedBalance: wallet.balance.toJSON(),
+      calculatedBalance: calculado.toJSON(),
+      difference: diferenca.toJSON(),
+      consistent: consistente,
+      checkedEntries: soma.quantidade,
+    };
   }
 
   async buscar(walletId: string): Promise<Wallet> {

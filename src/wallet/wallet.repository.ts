@@ -114,4 +114,20 @@ export class WalletRepository {
       }),
     }));
   }
+
+  // soma todos os creditos e tira os debitos do ledger da wallet
+  async somarLedger(manager: EntityManager, walletId: string) {
+    const rows = await manager.query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN direction = 'CREDIT' THEN amount_cents ELSE -amount_cents END), 0) AS total,
+         COUNT(*) AS quantidade
+       FROM ledger_entries
+       WHERE wallet_id = $1`,
+      [walletId],
+    );
+    return {
+      totalCentavos: BigInt(rows[0].total),
+      quantidade: Number(rows[0].quantidade),
+    };
+  }
 }

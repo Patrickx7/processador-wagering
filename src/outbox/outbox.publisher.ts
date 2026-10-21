@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { OutboxMessage } from '../domain/outbox-message';
+import { contar } from '../metrics/metricas';
 import { FILA_EVENTOS, sqs } from '../sqs/sqs';
 
 // le a tabela outbox_messages e publica os eventos no SQS
@@ -65,6 +66,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
             message.markPublished(new Date());
           } catch (error) {
             message.scheduleRetry(new Date());
+            contar('retries');
             this.logger.warn(
               `falha ao publicar evento ${message.id}, tentativa ${message.attempts}`,
             );

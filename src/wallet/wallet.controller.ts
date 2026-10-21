@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -44,5 +45,11 @@ export class WalletController {
   ) {
     const limite = Math.min(Math.max(Number(limit) || 50, 1), 100);
     return this.walletService.listarLedger(walletId, cursor, limite);
+  }
+
+  @Post(':walletId/reconciliation')
+  @HttpCode(200)
+  async reconciliar(@Param('walletId', ParseUUIDPipe) walletId: string) {
+    return this.walletService.reconciliar(walletId);
   }
 }
