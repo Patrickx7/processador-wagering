@@ -7,8 +7,10 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { Wallet } from '../domain/wallet';
+import { AuthGuard } from '../http/auth.guard';
 import { CriarWalletDto } from './wallet.dto';
 import { WalletService } from './wallet.service';
 
@@ -21,6 +23,7 @@ function paraResposta(wallet: Wallet) {
   };
 }
 
+@UseGuards(AuthGuard)
 @Controller('wallets')
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}

@@ -8,10 +8,12 @@ import {
   ParseUUIDPipe,
   Post,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Response } from 'express';
 import { WagerTransactionStatus } from '../domain/wager-transaction';
+import { AuthGuard } from '../http/auth.guard';
 import { SubmeterTransacaoDto } from './wagering.dto';
 import { ResultadoTransacao, WageringService } from './wagering.service';
 
@@ -25,6 +27,7 @@ function paraResposta(resultado: ResultadoTransacao) {
   };
 }
 
+@UseGuards(AuthGuard)
 @Controller()
 export class WageringController {
   constructor(private readonly wageringService: WageringService) {}
